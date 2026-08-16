@@ -1,0 +1,163 @@
+// Cloudflare Workers script to serve the AI navigation site
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    
+    // Serve the main HTML
+    if (url.pathname === '/' || url.pathname === '/index.html') {
+      return new Response(HTML, {
+        headers: {
+          'content-type': 'text/html; charset=utf-8',
+          'access-control-allow-origin': '*',
+        },
+      });
+    }
+    
+    // SPA fallback - return index.html for all other routes
+    return new Response(HTML, {
+      headers: {
+        'content-type': 'text/html; charset=utf-8',
+        'access-control-allow-origin': '*',
+      },
+    });
+  },
+};
+
+const HTML = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 工具导航</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0a0f;--bg2:#12121a;--card:#1a1a2e;--card-hover:#222240;
+  --text:#e2e2f0;--text2:#8888aa;--accent:#6c5ce7;--accent2:#00cec9;
+  --border:rgba(108,92,231,.3);--glow:rgba(108,92,231,.5);
+  --gradient:linear-gradient(135deg,#6c5ce7,#00cec9);
+}
+.light-mode{
+  --bg:#f0f2f5;--bg2:#ffffff;--card:#ffffff;--card-hover:#f8f8ff;
+  --text:#1a1a2e;--text2:#666688;--border:rgba(108,92,231,.2);
+  --glow:rgba(108,92,231,.3);
+}
+body{font-family:'Microsoft YaHei','PingFang SC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;transition:background .4s,color .4s}
+.canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none}
+.app{position:relative;z-index:1;max-width:1400px;margin:0 auto;padding:20px}
+.header{display:flex;align-items:center;justify-content:space-between;padding:20px 0;margin-bottom:10px;flex-wrap:wrap;gap:16px}
+.logo{display:flex;align-items:center;gap:12px}
+.logo-icon{width:48px;height:48px;border-radius:14px;background:var(--gradient);display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 4px 20px var(--glow)}
+.logo h1{font-size:1.6rem;background:var(--gradient);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.logo p{font-size:.8rem;color:var(--text2);margin-top:2px}
+.header-right{display:flex;align-items:center;gap:12px}
+.clock{font-size:.9rem;color:var(--text2);font-family:monospace;background:var(--card);padding:8px 14px;border-radius:10px;border:1px solid var(--border)}
+.theme-btn{width:40px;height:40px;border-radius:10px;background:var(--card);border:1px solid var(--border);color:var(--text);font-size:1.2rem;cursor:pointer;transition:all .3s;display:flex;align-items:center;justify-content:center}
+.theme-btn:hover{background:var(--card-hover);transform:scale(1.1)}
+.quote-bar{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 20px;margin-bottom:24px;display:flex;align-items:center;gap:12px;font-size:.9rem;color:var(--text2)}
+.quote-bar .icon{font-size:1.2rem;flex-shrink:0}
+.quote-bar .text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.search-box{position:relative;margin-bottom:28px}
+.search-box input{width:100%;padding:16px 20px 16px 52px;border-radius:14px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:1rem;outline:none;transition:all .3s}
+.search-box input:focus{border-color:var(--accent);box-shadow:0 0 20px var(--glow)}
+.search-box input::placeholder{color:var(--text2)}
+.search-box .search-icon{position:absolute;left:18px;top:50%;transform:translateY(-50%);font-size:1.2rem;color:var(--text2)}
+.search-box .search-count{position:absolute;right:18px;top:50%;transform:translateY(-50%);font-size:.8rem;color:var(--text2);background:rgba(108,92,231,.15);padding:4px 10px;border-radius:20px}
+.filter-tabs{display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap}
+.filter-tab{padding:8px 18px;border-radius:20px;border:1px solid var(--border);background:var(--card);color:var(--text2);cursor:pointer;font-size:.85rem;transition:all .3s;white-space:nowrap}
+.filter-tab:hover{border-color:var(--accent);color:var(--text)}
+.filter-tab.active{background:var(--gradient);color:#fff;border-color:transparent;box-shadow:0 4px 15px var(--glow)}
+.cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:40px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;cursor:pointer;transition:all .3s;position:relative;overflow:hidden;text-decoration:none;color:var(--text);display:block}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--gradient);opacity:0;transition:opacity .3s}
+.card:hover{transform:translateY(-4px);box-shadow:0 8px 32px var(--glow);border-color:var(--accent);background:var(--card-hover)}
+.card:hover::before{opacity:1}
+.card-fav{position:absolute;top:12px;right:12px;font-size:1.1rem;cursor:pointer;z-index:2;transition:transform .3s;line-height:1}
+.card-fav:hover{transform:scale(1.3)}
+.card-fav.active{color:#fd79a8}
+.card-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:12px;position:relative}
+.card-name{font-size:1rem;font-weight:bold;margin-bottom:4px}
+.card-desc{font-size:.78rem;color:var(--text2);line-height:1.4;margin-bottom:8px}
+.card-tag{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.7rem;background:rgba(108,92,231,.15);color:var(--accent);border:1px solid rgba(108,92,231,.2)}
+.card-new{position:absolute;top:12px;left:12px;font-size:.65rem;background:#fd79a8;color:#fff;padding:2px 8px;border-radius:10px;font-weight:bold}
+.empty-state{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--text2)}
+.empty-state .icon{font-size:3rem;margin-bottom:16px}
+.empty-state p{font-size:1rem}
+.footer{text-align:center;padding:20px;color:var(--text2);font-size:.8rem;border-top:1px solid var(--border);margin-top:20px}
+@keyframes fadeInUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.card{animation:fadeInUp .4s ease both}
+::-webkit-scrollbar{width:8px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--accent);border-radius:4px}
+.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--card);color:var(--text);padding:12px 24px;border-radius:10px;border:1px solid var(--border);opacity:0;transition:all .3s;z-index:1000}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media(max-width:768px){.header{flex-direction:column;text-align:center}.header-right{justify-content:center}.cards-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}}
+</style>
+</head>
+<body>
+<canvas class="canvas" id="particles"></canvas>
+<div class="app">
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">🤖</div>
+      <div><h1>AI 工具导航</h1><p>发现最优质的 AI 工具</p></div>
+    </div>
+    <div class="header-right">
+      <div class="clock" id="clock"></div>
+      <button class="theme-btn" id="themeBtn">🌙</button>
+    </div>
+  </div>
+  <div class="quote-bar"><span class="icon">💡</span><span class="text" id="quote"></span></div>
+  <div class="search-box"><span class="search-icon">🔍</span><input type="text" id="searchInput" placeholder="搜索 AI 工具..."><span class="search-count" id="searchCount"></span></div>
+  <div class="filter-tabs" id="filterTabs">
+    <div class="filter-tab active" data-cat="all">全部</div>
+    <div class="filter-tab" data-cat="chat">聊天</div>
+    <div class="filter-tab" data-cat="image">图像</div>
+    <div class="filter-tab" data-cat="search">搜索</div>
+    <div class="filter-tab" data-cat="coding">编程</div>
+    <div class="filter-tab" data-cat="office">办公</div>
+    <div class="filter-tab" data-cat="video">视频</div>
+    <div class="filter-tab" data-cat="audio">音频</div>
+    <div class="filter-tab" data-cat="translate">翻译</div>
+  </div>
+  <div class="cards-grid" id="cardsGrid"></div>
+  <div class="footer"><p>AI 工具导航站 | 让 AI 触手可及</p></div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const tools=[{name:'ChatGPT',desc:'OpenAI 最流行的 AI 聊天机器人',url:'https://chat.openai.com',cat:'chat',icon:'🤖',color:'#10a37f'},{name:'Claude',desc:'Anthropic 的 AI 助手',url:'https://claude.ai',cat:'chat',icon:'🧠',color:'#d97706'},{name:'Gemini',desc:'Google 的 AI 助手',url:'https://gemini.google.com',cat:'chat',icon:'💎',color:'#4285f4'},{name:'DeepSeek',desc:'国内优秀的 AI 大模型',url:'https://chat.deepseek.com',cat:'chat',icon:'🔍',color:'#6366f1'},{name:'文心一言',desc:'百度大语言模型',url:'https://yiyan.baidu.com',cat:'chat',icon:'📖',color:'#2563eb'},{name:'通义千问',desc:'阿里大语言模型',url:'https://tongyi.aliyun.com',cat:'chat',icon:'🔮',color:'#7c3aed'},{name:'Kimi',desc:'月之暗面 AI 助手',url:'https://kimi.moonshot.cn',cat:'chat',icon:'🌙',color:'#0891b2'},{name:'豆包',desc:'字节跳动 AI 助手',url:'https://www.doubao.com',cat:'chat',icon:'💬',color:'#f59e0b'},{name:'Midjourney',desc:'最优质的 AI 图像生成工具',url:'https://midjourney.com',cat:'image',icon:'🎨',color:'#6366f1',new:true},{name:'DALL-E',desc:'OpenAI 图像生成',url:'https://openai.com/dall-e-3',cat:'image',icon:'🖼️',color:'#10a37f'},{name:'Stable Diffusion',desc:'开源图像生成模型',url:'https://stability.ai',cat:'image',icon:'🎭',color:'#ec4899'},{name:'Leonardo AI',desc:'AI 艺术创作平台',url:'https://leonardo.ai',cat:'image',icon:'🎪',color:'#8b5cf6'},{name:'即梦 AI',desc:'字节跳动图像生成',url:'https://jimeng.jianying.com',cat:'image',icon:'🎬',color:'#f43f5e'},{name:'可灵 AI',desc:'快手 AI 图像视频生成',url:'https://klingai.kuaishou.com',cat:'image',icon:'⚡',color:'#f97316'},{name:'Perplexity',desc:'AI 搜索引擎',url:'https://www.perplexity.ai',cat:'search',icon:'🔎',color:'#0ea5e9'},{name:'Phind',desc:'程序员专属 AI 搜索',url:'https://www.phind.com',cat:'search',icon:'💻',color:'#22c55e'},{name:'秘塔搜索',desc:'无广告 AI 搜索',url:'https://metaso.cn',cat:'search',icon:'🔍',color:'#3b82f6'},{name:'Cursor',desc:'AI 代码编辑器',url:'https://cursor.sh',cat:'coding',icon:'⚡',color:'#00d4aa'},{name:'GitHub Copilot',desc:'GitHub AI 编程助手',url:'https://github.com/features/copilot',cat:'coding',icon:'🐙',color:'#6e40c9'},{name:'DeepSeek Coder',desc:'代码生成专用模型',url:'https://chat.deepseek.com',cat:'coding',icon:'💻',color:'#6366f1'},{name:'Replit',desc:'在线 AI 编程环境',url:'https://replit.com',cat:'coding',icon:'🤖',color:'#f03e2c'},{name:'Codeium',desc:'免费 AI 代码补全',url:'https://codeium.com',cat:'coding',icon:'⚙️',color:'#10b981'},{name:'Notion AI',desc:'AI 辅助笔记和协作',url:'https://notion.so',cat:'office',icon:'📝',color:'#000000'},{name:'飞书妙记',desc:'飞书会议转文字，智能纪要',url:'https://www.feishu.cn/product/memo',cat:'office',icon:'📝',color:'#00cec9'},{name:'腾讯文档AI',desc:'腾讯在线文档 + AI 辅助',url:'https://docs.qq.com',cat:'office',icon:'📄',color:'#0984e3'},{name:'Runway',desc:'AI 视频生成与编辑工具',url:'https://runwayml.com',cat:'video',icon:'🎬',color:'#e84393'},{name:'Sora',desc:'OpenAI 视频生成模型',url:'https://openai.com/sora',cat:'video',icon:'🎥',color:'#00b894'},{name:'Pika',desc:'AI 视频生成，简单易用',url:'https://pika.art',cat:'video',icon:'🎞️',color:'#a29bfe'},{name:'Suno',desc:'AI 音乐生成，输入歌词出歌曲',url:'https://suno.com',cat:'audio',icon:'🎵',color:'#fd79a8',new:true},{name:'ElevenLabs',desc:'AI 语音克隆和合成',url:'https://elevenlabs.io',cat:'audio',icon:'🎙️',color:'#fdcb6e'},{name:'RVC',desc:'AI 歌声转换，声音克隆',url:'https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI',cat:'audio',icon:'🔊',color:'#6c5ce7'},{name:'DeepL',desc:'最准确的 AI 翻译工具',url:'https://www.deepl.com',cat:'translate',icon:'🌐',color:'#0984e3'},{name:'剑桥词典AI',desc:'AI 辅助词典和翻译',url:'https://dictionary.cambridge.org',cat:'translate',icon:'📖',color:'#e17055'}];
+const quotes=['AI 不是要取代人类，而是要增强人类的能力。','未来属于那些相信梦想之美的人。','工具决定形态，形态决定文化。','人工智能是新的电力，它将改变一切。','最好的预测未来的方式，就是去创造它。','科技的未来在于人与 AI 的协作，而非竞争。','每一次技术的飞跃，都始于一个大胆的想法。','AI 正在重新定义创造力的边界。','不要等待未来，去构建它。','伟大的工具让平凡的人做出不平凡的事。'];
+let favorites=JSON.parse(localStorage.getItem('ai_nav_favs')||'[]');
+let currentCat='all',searchQuery='',isDark=localStorage.getItem('ai_nav_theme')!=='light';
+const canvas=document.getElementById('particles'),ctx=canvas.getContext('2d');
+let particles=[],mouse={x:-1000,y:-1000};
+function resizeCanvas(){canvas.width=window.innerWidth;canvas.height=window.innerHeight}
+resizeCanvas();window.addEventListener('resize',resizeCanvas);
+document.addEventListener('mousemove',e=>{mouse.x=e.clientX;mouse.y=e.clientY});
+class Particle{constructor(){this.reset()}reset(){this.x=Math.random()*canvas.width;this.y=Math.random()*canvas.height;this.size=Math.random()*2+.5;this.speedX=(Math.random()-.5)*.5;this.speedY=(Math.random()-.5)*.5;this.opacity=Math.random()*.5+.1}update(){this.x+=this.speedX;this.y+=this.speedY;const dx=mouse.x-this.x,dy=mouse.y-this.y,dist=Math.sqrt(dx*dx+dy*dy);if(dist<120){this.x-=dx*.01;this.y-=dy*.01;this.opacity=Math.min(.8,this.opacity+.02)}else{this.opacity+=(.3-this.opacity)*.01}if(this.x<0||this.x>canvas.width)this.speedX*=-1;if(this.y<0||this.y>canvas.height)this.speedY*=-1}draw(){ctx.beginPath();ctx.arc(this.x,this.y,this.size,0,Math.PI*2);ctx.fillStyle=`rgba(108,92,231,${this.opacity})`;ctx.fill()}}
+function initParticles(){const count=Math.min(80,Math.floor(canvas.width*canvas.height/15000));particles=[];for(let i=0;i<count;i++)particles.push(new Particle())}
+initParticles();
+function drawLines(){for(let i=0;i<particles.length;i++)for(let j=i+1;j<particles.length;j++){const dx=particles[i].x-particles[j].x,dy=particles[i].y-particles[j].y,dist=Math.sqrt(dx*dx+dy*dy);if(dist<150){ctx.beginPath();ctx.moveTo(particles[i].x,particles[i].y);ctx.lineTo(particles[j].x,particles[j].y);ctx.strokeStyle=`rgba(108,92,231,${.15*(1-dist/150)})`;ctx.lineWidth=.5;ctx.stroke()}}}
+function animateParticles(){ctx.clearRect(0,0,canvas.width,canvas.height);particles.forEach(p=>{p.update();p.draw()});drawLines();requestAnimationFrame(animateParticles)}
+animateParticles();
+function updateClock(){const now=new Date();const h=String(now.getHours()).padStart(2,'0');const m=String(now.getMinutes()).padStart(2,'0');const s=String(now.getSeconds()).padStart(2,'0');const date=now.toLocaleDateString('zh-CN',{month:'short',day:'numeric',weekday:'short'});document.getElementById('clock').textContent=`${date} ${h}:${m}:${s}`}
+setInterval(updateClock,1000);updateClock();
+function showQuote(){const idx=Math.floor(Math.random()*quotes.length);document.getElementById('quote').textContent=quotes[idx]}
+showQuote();
+function applyTheme(){document.body.classList.toggle('light-mode',!isDark);document.getElementById('themeBtn').textContent=isDark?'🌙':'☀️'}
+applyTheme();
+document.getElementById('themeBtn').addEventListener('click',()=>{isDark=!isDark;localStorage.setItem('ai_nav_theme',isDark?'dark':'light');applyTheme()});
+function renderCards(){const grid=document.getElementById('cardsGrid');let filtered=tools;if(currentCat!=='all')filtered=filtered.filter(t=>t.cat===currentCat);if(searchQuery){const q=searchQuery.toLowerCase();filtered=filtered.filter(t=>t.name.toLowerCase().includes(q)||t.desc.toLowerCase().includes(q)||t.cat.toLowerCase().includes(q))}
+document.getElementById('searchCount').textContent=filtered.length>0?`${filtered.length} 个工具`:'';
+if(filtered.length===0){grid.innerHTML=`<div class="empty-state"><div class="icon">🔍</div><p>没有找到匹配的工具</p></div>`;return}
+grid.innerHTML=filtered.map((t,i)=>{const isFav=favorites.includes(t.name);return`<a class="card" href="${t.url}" target="_blank" rel="noopener noreferrer" data-name="${t.name}" style="animation-delay:${i*.02}s" onclick="return false;"><span class="card-fav ${isFav?'active':''}">${isFav?'❤️':'🤍'}</span>${t.new?'<span class="card-new">NEW</span>':''}<div class="card-icon" style="background:${t.color}22;border:1px solid ${t.color}55">${t.icon}</div><div class="card-name">${t.name}</div><div class="card-desc">${t.desc}</div><span class="card-tag">${catLabel(t.cat)}</span></a>`}).join('')}
+function catLabel(c){const map={chat:'聊天',image:'图像',search:'搜索',coding:'编程',office:'办公',video:'视频',audio:'音频',translate:'翻译',other:'其他'};return map[c]||c}
+document.getElementById('searchInput').addEventListener('input',e=>{searchQuery=e.target.value.trim();renderCards()});
+document.getElementById('filterTabs').addEventListener('click',e=>{const tab=e.target.closest('.filter-tab');if(!tab)return;document.querySelectorAll('.filter-tab').forEach(t=>t.classList.remove('active'));tab.classList.add('active');currentCat=tab.dataset.cat;renderCards()});
+document.getElementById('cardsGrid').addEventListener('click',e=>{const favBtn=e.target.closest('.card-fav');if(favBtn){e.preventDefault();e.stopPropagation();const card=favBtn.closest('.card');const name=card.dataset.name;const idx=favorites.indexOf(name);if(idx===-1){favorites.push(name);favBtn.textContent=' ❤️';favBtn.classList.add('active');showToast(`已收藏 ${name}`)}else{favorites.splice(idx,1);favBtn.textContent=' 🤍';favBtn.classList.remove('active');showToast(`已取消收藏 ${name}`)}localStorage.setItem('ai_nav_favs',JSON.stringify(favorites));return}
+const card=e.target.closest('.card');if(card){const url=card.href;if(url&&url.startsWith('http')){const w=window.open(url,'_blank');if(!w)window.location.href=url}}});
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000)}
+renderCards();
+</script>
+</body>
+</html>`;
